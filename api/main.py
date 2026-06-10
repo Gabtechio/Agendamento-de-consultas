@@ -28,8 +28,16 @@ MEDICOS = {
         {"id": 2, "nome": "Dra. Maria Souza", "foto": "maria.png", "categoria": "Ortopedista", "horarios_vagos": ["09:00", "11:00", "15:00"]},
         {"id": 3, "nome": "Dr. Pedro Alves", "foto": "pedro.png", "categoria": "Ortopedista", "horarios_vagos": ["08:00", "13:00", "17:00"]}
     ],
-    "pediatra": [],
-    "cirurgiao": []
+    "pediatra": [
+        {"id": 4, "nome": "Dra. Ana Costa", "foto": "ana.png", "categoria": "Pediatra", "horarios_vagos": ["10:00", "14:00", "16:00"]},
+        {"id": 5, "nome": "Dr. Carlos Oliveira", "foto": "carlos.png", "categoria": "Pediatra", "horarios_vagos": ["09:00", "11:00", "15:00"]},
+        {"id": 6, "nome": "Dr. Luis Pereira", "foto": "luis.png", "categoria": "Pediatra", "horarios_vagos": ["08:00", "13:00", "17:00"]}
+    ],
+    "cirurgiao": [
+        {"id": 7, "nome": "Dr. Lucas Costa", "foto": "lucas.png", "categoria": "Cirurgião", "horarios_vagos": ["10:00", "14:00", "16:00"]},
+        {"id": 8, "nome": "Dra. Gabriela Quadras", "foto": "gabriela.png", "categoria": "Cirurgião", "horarios_vagos": ["09:00", "11:00", "15:00"]},
+        {"id": 9, "nome": "Dr. Talisson Federizzi", "foto": "talisson.png", "categoria": "Cirurgião", "horarios_vagos": ["08:00", "13:00", "17:00"]}
+    ]
 }
 
 class Agendamento(BaseModel):
