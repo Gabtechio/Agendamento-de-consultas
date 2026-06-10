@@ -12,7 +12,6 @@
             text-align: center;
             margin: 0;
             padding: 20px;
-            /* Flexbox para centralizar tudo na tela (vertical e horizontalmente) */
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -45,6 +44,8 @@
         .btn-horario.selecionado { background-color: #17a2b8; border: 3px solid #0b2e13; transform: scale(1.05); }
         .btn-secundario { background-color: #6c757d; }
         .btn-secundario:hover { background-color: #5a6268; }
+        .btn-vermelho { background-color: #dc3545; }
+        .btn-vermelho:hover { background-color: #c82333; }
         
         .medico-card {
             border: 1px solid #ddd;
@@ -92,6 +93,9 @@
         <button onclick="buscarMedicos('ortopedista')">Ortopedista</button>
         <button onclick="buscarMedicos('pediatra')">Pediatra</button>
         <button onclick="buscarMedicos('cirurgiao')">Cirurgião</button>
+        
+        <br><br><hr style="border: 0; border-top: 1px solid #eee;">
+        <button onclick="abrirMeusAgendamentos()" class="btn-secundario" style="width: 90%; margin-top: 15px;">📅 Meus Agendamentos</button>
     </div>
 
     <div id="passo-2" class="hidden">
@@ -102,7 +106,6 @@
 
     <div id="passo-3" class="hidden">
         <h2 id="nome-medico-selecionado"></h2>
-        
         <input type="text" id="nome-paciente" placeholder="Seu Nome Completo" required>
         <input type="text" id="data-consulta" placeholder="Data (ex: 15/06)" required>
         
@@ -119,6 +122,13 @@
         <button onclick="voltarPasso(2)" class="btn-secundario">Trocar Médico</button>
     </div>
 
+    <div id="passo-4" class="hidden">
+        <h2>Minhas Consultas</h2>
+        <div id="lista-meus-agendamentos"></div>
+        <br>
+        <button onclick="voltarPasso(1)" class="btn-secundario" style="width: 90%;">Voltar ao Menu</button>
+    </div>
+
     <div id="mensagem-alerta" class="hidden">
         <span id="texto-alerta"></span>
         <br><br>
@@ -127,9 +137,7 @@
 </div>
 
 <script>
-    // A MÁGICA DA REDE: Ele pega o IP exato da máquina automaticamente
     const API_URL = "http://" + window.location.hostname + ":8000";
-    
     let medicoSelecionado = null;
     let horarioSelecionado = null;
 
@@ -151,7 +159,6 @@
             const divLista = document.getElementById('lista-medicos');
             divLista.innerHTML = ""; 
             medicos.forEach(medico => {
-                // Renderiza a imagem do médico junto com as informações
                 divLista.innerHTML += `
                     <div class="medico-card" onclick='abrirPerfilMedico(${JSON.stringify(medico)})'>
                         <img src="${medico.foto}" alt="${medico.nome}" class="foto-medico" onerror="this.src='https://via.placeholder.com/70x70?text=Sem+Foto'">
@@ -171,21 +178,17 @@
     function abrirPerfilMedico(medico) {
         medicoSelecionado = medico;
         horarioSelecionado = null; 
-        document.getElementById('data-consulta').value = ""; // Limpa a data
+        document.getElementById('data-consulta').value = ""; 
 
         document.getElementById('passo-2').classList.add('hidden');
         document.getElementById('passo-3').classList.remove('hidden');
-        document.getElementById('area-horarios').classList.add('hidden'); // Esconde a área de horários
+        document.getElementById('area-horarios').classList.add('hidden'); 
         document.getElementById('nome-medico-selecionado').innerText = medico.nome;
     }
 
-    // NOVA FUNÇÃO: Busca os horários na API cruzando com o Redis
     async function buscarHorariosLivres() {
         const dia = document.getElementById('data-consulta').value;
-        if (!dia) {
-            alert("Por favor, digite a data antes de ver os horários.");
-            return;
-        }
+        if (!dia) return alert("Por favor, digite a data antes de ver os horários.");
 
         const diaFormatado = encodeURIComponent(dia);
         
@@ -197,14 +200,13 @@
             divHorarios.innerHTML = "";
 
             if (horarios.length === 0) {
-                divHorarios.innerHTML = "<p style='color: red;'>Agenda lotada para este dia!</p>";
+                divHorarios.innerHTML = "<p style='color: red; font-weight: bold;'>Agenda lotada para este dia!</p>";
             } else {
                 horarios.forEach(hora => {
                     divHorarios.innerHTML += `<button class="btn-horario" onclick="selecionarHorario(this, '${hora}')">${hora}</button>`;
                 });
             }
             document.getElementById('area-horarios').classList.remove('hidden');
-
         } catch(erro) {
             alert("Erro ao buscar horários vagos.");
         }
@@ -220,12 +222,8 @@
         const nomePaciente = document.getElementById('nome-paciente').value;
         const dataConsulta = document.getElementById('data-consulta').value;
 
-        if (!nomePaciente || !dataConsulta) {
-            return alert("Por favor, preencha seu nome e a data.");
-        }
-        if (!horarioSelecionado) {
-            return alert("Por favor, escolha um horário.");
-        }
+        if (!nomePaciente || !dataConsulta) return alert("Por favor, preencha seu nome e a data.");
+        if (!horarioSelecionado) return alert("Por favor, escolha um horário.");
 
         mostrarMensagem("Garantindo seu horário no sistema...", "loading");
         document.getElementById('btn-voltar-alerta').classList.add('hidden');
@@ -249,13 +247,23 @@
 
             if (resposta.status === 200) {
                 mostrarMensagem(dados.mensagem, "sucesso");
+                
+                // SALVA NO NAVEGADOR
+                const agendamento_salvo = {
+                    medico_id: medicoSelecionado.id,
+                    medico_nome: medicoSelecionado.nome,
+                    dia: dataConsulta,
+                    horario: horarioSelecionado
+                };
+                let meusAgendamentos = JSON.parse(localStorage.getItem("meusAgendamentos") || "[]");
+                meusAgendamentos.push(agendamento_salvo);
+                localStorage.setItem("meusAgendamentos", JSON.stringify(meusAgendamentos));
+
             } else if (resposta.status === 409) {
                 mostrarMensagem(dados.detail, "erro");
             } else {
                 mostrarMensagem("Erro interno no servidor.", "erro");
             }
-            
-            // Mostra o botão para voltar ao menu
             document.getElementById('btn-voltar-alerta').classList.remove('hidden');
 
         } catch (erro) {
@@ -264,6 +272,76 @@
         }
     }
 
+    // FUNÇÕES NOVAS: GESTÃO DE CANCELAMENTO
+    function abrirMeusAgendamentos() {
+        document.getElementById('passo-1').classList.add('hidden');
+        document.getElementById('passo-4').classList.remove('hidden');
+        
+        const divLista = document.getElementById('lista-meus-agendamentos');
+        divLista.innerHTML = "";
+        
+        let meusAgendamentos = JSON.parse(localStorage.getItem("meusAgendamentos") || "[]");
+        
+        if (meusAgendamentos.length === 0) {
+            divLista.innerHTML = "<p>Você não possui consultas agendadas.</p>";
+            return;
+        }
+        
+        // Desenha as consultas salvas
+        meusAgendamentos.forEach((ag, index) => {
+            divLista.innerHTML += `
+                <div class="medico-card" style="justify-content: space-between;">
+                    <div>
+                        <strong>${ag.medico_nome}</strong><br>
+                        📅 ${ag.dia} às ⏰ ${ag.horario}
+                    </div>
+                    <button class="btn-vermelho" style="padding: 8px 12px; margin: 0;" onclick="cancelarConsulta(${index})">Cancelar</button>
+                </div>
+            `;
+        });
+    }
+
+    async function cancelarConsulta(index) {
+        if (!confirm("Tem certeza que deseja cancelar esta consulta?")) return;
+
+        let meusAgendamentos = JSON.parse(localStorage.getItem("meusAgendamentos") || "[]");
+        const ag = meusAgendamentos[index];
+        
+        const pacoteCancelamento = {
+            medico_id: ag.medico_id,
+            dia: ag.dia,
+            horario: ag.horario
+        };
+        
+        document.getElementById('passo-4').classList.add('hidden');
+        mostrarMensagem("Liberando vaga no servidor...", "loading");
+        
+        try {
+            const resposta = await fetch(`${API_URL}/cancelar`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(pacoteCancelamento)
+            });
+            
+            if (resposta.ok) {
+                // Remove da memória do navegador se a API apagou do Redis
+                meusAgendamentos.splice(index, 1);
+                localStorage.setItem("meusAgendamentos", JSON.stringify(meusAgendamentos));
+                
+                esconderMensagem();
+                abrirMeusAgendamentos(); // Atualiza a tela
+                alert("Agendamento cancelado com sucesso. O horário já está livre novamente!");
+            } else {
+                mostrarMensagem("Erro ao cancelar no servidor.", "erro");
+                document.getElementById('btn-voltar-alerta').classList.remove('hidden');
+            }
+        } catch(erro) {
+            mostrarMensagem("Erro ao conectar com a API para cancelar.", "erro");
+            document.getElementById('btn-voltar-alerta').classList.remove('hidden');
+        }
+    }
+
+    // Funções utilitárias
     function mostrarMensagem(texto, tipo) {
         const msgBox = document.getElementById('mensagem-alerta');
         document.getElementById('texto-alerta').innerText = texto;
@@ -279,6 +357,7 @@
         document.getElementById('passo-1').classList.add('hidden');
         document.getElementById('passo-2').classList.add('hidden');
         document.getElementById('passo-3').classList.add('hidden');
+        document.getElementById('passo-4').classList.add('hidden');
         esconderMensagem();
         document.getElementById(`passo-${passo}`).classList.remove('hidden');
     }

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles # <-- Importação adicionada
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import redis
 import pika
@@ -21,27 +21,24 @@ RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
 
 cache = redis.from_url(REDIS_URL, decode_responses=True)
 
-# Dados com os nomes das imagens.
 MEDICOS = {
     "ortopedista": [
         {"id": 1, "nome": "Dr. João Silva", "foto": "joao.png", "categoria": "Ortopedista", "horarios_vagos": ["10:00", "14:00", "16:00"]},
         {"id": 2, "nome": "Dra. Maria Souza", "foto": "maria.png", "categoria": "Ortopedista", "horarios_vagos": ["09:00", "11:00", "15:00"]},
         {"id": 3, "nome": "Dr. Pedro Alves", "foto": "pedro.png", "categoria": "Ortopedista", "horarios_vagos": ["08:00", "13:00", "17:00"]}
     ],
-    "pediatra": [
-        {"id": 4, "nome": "Dra. Ana Costa", "foto": "ana.png", "categoria": "Pediatra", "horarios_vagos": ["10:00", "14:00", "16:00"]},
-        {"id": 5, "nome": "Dr. Carlos Oliveira", "foto": "carlos.png", "categoria": "Pediatra", "horarios_vagos": ["09:00", "11:00", "15:00"]},
-        {"id": 6, "nome": "Dr. Luis Pereira", "foto": "luis.png", "categoria": "Pediatra", "horarios_vagos": ["08:00", "13:00", "17:00"]}
-    ],
-    "cirurgiao": [
-        {"id": 7, "nome": "Dr. Lucas Costa", "foto": "lucas.png", "categoria": "Cirurgião", "horarios_vagos": ["10:00", "14:00", "16:00"]},
-        {"id": 8, "nome": "Dra. Gabriela Quadras", "foto": "gabriela.png", "categoria": "Cirurgião", "horarios_vagos": ["09:00", "11:00", "15:00"]},
-        {"id": 9, "nome": "Dr. Talisson Federizzi", "foto": "talisson.png", "categoria": "Cirurgião", "horarios_vagos": ["08:00", "13:00", "17:00"]}
-    ]
+    "pediatra": [],
+    "cirurgiao": []
 }
 
 class Agendamento(BaseModel):
     paciente_nome: str
+    medico_id: int
+    dia: str
+    horario: str
+
+# Modelo novo apenas para os dados de cancelamento
+class Cancelamento(BaseModel):
     medico_id: int
     dia: str
     horario: str
@@ -67,7 +64,6 @@ def obter_horarios_vagos(medico_id: int, dia: str):
         raise HTTPException(status_code=404, detail="Médico não encontrado")
 
     horarios_disponiveis = []
-    # Só devolve o horário se NÃO existir uma trava no Redis para ele
     for hora in medico_encontrado["horarios_vagos"]:
         lock_key = f"lock:medico:{medico_id}:dia:{dia}:hora:{hora}"
         if not cache.exists(lock_key):
@@ -107,5 +103,11 @@ def agendar_consulta(dados: Agendamento):
         "mensagem": f"Consulta confirmada para o dia {dados.dia} às {dados.horario}!"
     }
 
-# Monta a pasta estática para servir o HTML na raiz do site
+# NOVA ROTA: Libera a vaga no Redis
+@app.post("/cancelar")
+def cancelar_consulta(dados: Cancelamento):
+    lock_key = f"lock:medico:{dados.medico_id}:dia:{dados.dia}:hora:{dados.horario}"
+    cache.delete(lock_key) # Destrava o horário no Redis
+    return {"status": "sucesso", "mensagem": "Horário liberado!"}
+
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
