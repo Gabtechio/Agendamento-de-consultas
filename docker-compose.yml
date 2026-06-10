@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # 1. O Cache (Para a trava de concorrência)
+  redis-cache:
+    image: redis:alpine
+    container_name: redis-cache
+    ports:
+      - "6379:6379"
+
+  # 2. O Broker de Mensageria (Para a fila de agendamentos)
+  rabbitmq-broker:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq-broker
+    ports:
+      - "5672:5672"   # Porta de comunicação da fila
+      - "15672:15672" # Porta do painel visual (para mostrar na apresentação)
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 3. A API REST (O Servidor FastAPI)
+  api-produtor:
+    build: 
+      context: ./api
+    container_name: api-produtor
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis-cache:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq-broker:5672/
+    depends_on:
+      rabbitmq-broker:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+
+  # 4. O Consumidor (O Worker que salva no JSON)
+  worker-consumidor:
+    build:
+      context: ./worker
+    container_name: worker-consumidor
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq-broker:5672/
+    depends_on:
+      rabbitmq-broker:
+        condition: service_healthy
