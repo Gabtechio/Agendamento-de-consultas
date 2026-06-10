@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agendamento Médico</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+            /* Flexbox para centralizar tudo na tela (vertical e horizontalmente) */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 90vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: white;
+            padding: 40px 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+        h1 { margin-top: 0; color: #2c3e50; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            margin: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: 0.3s;
+        }
+        button:hover { background-color: #0056b3; }
+        .btn-horario { background-color: #28a745; }
+        .btn-horario:hover { background-color: #1e7e34; }
+        .btn-horario.selecionado { background-color: #17a2b8; border: 3px solid #0b2e13; transform: scale(1.05); }
+        .btn-secundario { background-color: #6c757d; }
+        .btn-secundario:hover { background-color: #5a6268; }
+        
+        .medico-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            text-align: left;
+        }
+        .medico-card:hover { background-color: #f1f1f1; transform: translateY(-2px); }
+        .foto-medico {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            object-fit: cover;
+            background-color: #e9ecef;
+        }
+        
+        .hidden { display: none !important; }
+        input { padding: 12px; margin: 10px 0; width: 90%; border-radius: 6px; border: 1px solid #ccc; font-size: 16px; }
+        
+        #mensagem-alerta {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .sucesso { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .erro { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .loading { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Agendamento Médico</h1>
+
+    <div id="passo-1">
+        <p>Selecione a especialidade desejada:</p>
+        <button onclick="buscarMedicos('ortopedista')">Ortopedista</button>
+        <button onclick="buscarMedicos('pediatra')">Pediatra</button>
+        <button onclick="buscarMedicos('cirurgiao')">Cirurgião</button>
+    </div>
+
+    <div id="passo-2" class="hidden">
+        <h2 id="titulo-categoria"></h2>
+        <div id="lista-medicos"></div>
+        <button onclick="voltarPasso(1)" class="btn-secundario" style="margin-top: 20px;">Voltar ao Menu</button>
+    </div>
+
+    <div id="passo-3" class="hidden">
+        <h2 id="nome-medico-selecionado"></h2>
+        
+        <input type="text" id="nome-paciente" placeholder="Seu Nome Completo" required>
+        <input type="text" id="data-consulta" placeholder="Data (ex: 15/06)" required>
+        
+        <button onclick="buscarHorariosLivres()" style="background-color: #17a2b8; width: 90%;">Ver Horários Disponíveis</button>
+
+        <div id="area-horarios" class="hidden">
+            <h3 style="margin-top: 25px;">Horários Livres:</h3>
+            <div id="lista-horarios"></div>
+            <br>
+            <button onclick="confirmarAgendamento()" style="background-color: #ffc107; color: black; font-weight: bold; width: 90%; font-size: 18px;">CONFIRMAR AGENDAMENTO</button>
+        </div>
+
+        <br><br>
+        <button onclick="voltarPasso(2)" class="btn-secundario">Trocar Médico</button>
+    </div>
+
+    <div id="mensagem-alerta" class="hidden">
+        <span id="texto-alerta"></span>
+        <br><br>
+        <button onclick="voltarPasso(1)" class="btn-secundario" id="btn-voltar-alerta">Voltar ao Início</button>
+    </div>
+</div>
+
+<script>
+    // A MÁGICA DA REDE: Ele pega o IP exato da máquina automaticamente
+    const API_URL = "http://" + window.location.hostname + ":8000";
+    
+    let medicoSelecionado = null;
+    let horarioSelecionado = null;
+
+    async function buscarMedicos(categoria) {
+        mostrarMensagem('Buscando profissionais...', 'loading');
+        document.getElementById('btn-voltar-alerta').classList.add('hidden');
+        
+        try {
+            const resposta = await fetch(`${API_URL}/medicos/${categoria}`);
+            if (!resposta.ok) throw new Error();
+            
+            const medicos = await resposta.json();
+            
+            document.getElementById('passo-1').classList.add('hidden');
+            document.getElementById('passo-2').classList.remove('hidden');
+            document.getElementById('titulo-categoria').innerText = `Especialidade: ${categoria.toUpperCase()}`;
+            esconderMensagem();
+
+            const divLista = document.getElementById('lista-medicos');
+            divLista.innerHTML = ""; 
+            medicos.forEach(medico => {
+                // Renderiza a imagem do médico junto com as informações
+                divLista.innerHTML += `
+                    <div class="medico-card" onclick='abrirPerfilMedico(${JSON.stringify(medico)})'>
+                        <img src="${medico.foto}" alt="${medico.nome}" class="foto-medico" onerror="this.src='https://via.placeholder.com/70x70?text=Sem+Foto'">
+                        <div>
+                            <strong>${medico.nome}</strong><br>
+                            <small style="color: #666;">${medico.categoria}</small>
+                        </div>
+                    </div>
+                `;
+            });
+        } catch (erro) {
+            mostrarMensagem("Ainda não temos médicos cadastrados nesta categoria.", "erro");
+            document.getElementById('btn-voltar-alerta').classList.remove('hidden');
+        }
+    }
+
+    function abrirPerfilMedico(medico) {
+        medicoSelecionado = medico;
+        horarioSelecionado = null; 
+        document.getElementById('data-consulta').value = ""; // Limpa a data
+
+        document.getElementById('passo-2').classList.add('hidden');
+        document.getElementById('passo-3').classList.remove('hidden');
+        document.getElementById('area-horarios').classList.add('hidden'); // Esconde a área de horários
+        document.getElementById('nome-medico-selecionado').innerText = medico.nome;
+    }
+
+    // NOVA FUNÇÃO: Busca os horários na API cruzando com o Redis
+    async function buscarHorariosLivres() {
+        const dia = document.getElementById('data-consulta').value;
+        if (!dia) {
+            alert("Por favor, digite a data antes de ver os horários.");
+            return;
+        }
+
+        const diaFormatado = encodeURIComponent(dia);
+        
+        try {
+            const resposta = await fetch(`${API_URL}/horarios/${medicoSelecionado.id}?dia=${diaFormatado}`);
+            const horarios = await resposta.json();
+
+            const divHorarios = document.getElementById('lista-horarios');
+            divHorarios.innerHTML = "";
+
+            if (horarios.length === 0) {
+                divHorarios.innerHTML = "<p style='color: red;'>Agenda lotada para este dia!</p>";
+            } else {
+                horarios.forEach(hora => {
+                    divHorarios.innerHTML += `<button class="btn-horario" onclick="selecionarHorario(this, '${hora}')">${hora}</button>`;
+                });
+            }
+            document.getElementById('area-horarios').classList.remove('hidden');
+
+        } catch(erro) {
+            alert("Erro ao buscar horários vagos.");
+        }
+    }
+
+    function selecionarHorario(botao, hora) {
+        horarioSelecionado = hora;
+        document.querySelectorAll('.btn-horario').forEach(b => b.classList.remove('selecionado'));
+        botao.classList.add('selecionado');
+    }
+
+    async function confirmarAgendamento() {
+        const nomePaciente = document.getElementById('nome-paciente').value;
+        const dataConsulta = document.getElementById('data-consulta').value;
+
+        if (!nomePaciente || !dataConsulta) {
+            return alert("Por favor, preencha seu nome e a data.");
+        }
+        if (!horarioSelecionado) {
+            return alert("Por favor, escolha um horário.");
+        }
+
+        mostrarMensagem("Garantindo seu horário no sistema...", "loading");
+        document.getElementById('btn-voltar-alerta').classList.add('hidden');
+        document.getElementById('passo-3').classList.add('hidden');
+
+        const pacoteDados = {
+            paciente_nome: nomePaciente,
+            medico_id: medicoSelecionado.id,
+            dia: dataConsulta,
+            horario: horarioSelecionado
+        };
+
+        try {
+            const resposta = await fetch(`${API_URL}/agendar`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(pacoteDados)
+            });
+
+            const dados = await resposta.json();
+
+            if (resposta.status === 200) {
+                mostrarMensagem(dados.mensagem, "sucesso");
+            } else if (resposta.status === 409) {
+                mostrarMensagem(dados.detail, "erro");
+            } else {
+                mostrarMensagem("Erro interno no servidor.", "erro");
+            }
+            
+            // Mostra o botão para voltar ao menu
+            document.getElementById('btn-voltar-alerta').classList.remove('hidden');
+
+        } catch (erro) {
+            mostrarMensagem("Erro ao conectar com a API.", "erro");
+            document.getElementById('btn-voltar-alerta').classList.remove('hidden');
+        }
+    }
+
+    function mostrarMensagem(texto, tipo) {
+        const msgBox = document.getElementById('mensagem-alerta');
+        document.getElementById('texto-alerta').innerText = texto;
+        msgBox.className = tipo; 
+        msgBox.classList.remove('hidden');
+    }
+
+    function esconderMensagem() {
+        document.getElementById('mensagem-alerta').classList.add('hidden');
+    }
+
+    function voltarPasso(passo) {
+        document.getElementById('passo-1').classList.add('hidden');
+        document.getElementById('passo-2').classList.add('hidden');
+        document.getElementById('passo-3').classList.add('hidden');
+        esconderMensagem();
+        document.getElementById(`passo-${passo}`).classList.remove('hidden');
+    }
+</script>
+
+</body>
+</html>
